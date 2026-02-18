@@ -1,6 +1,8 @@
 ﻿import "./globals.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Header } from "../components/layout/Header";
+import { BILLIARD_CLOTH_CLASS } from "../services/theme-cloth-background";
 
 export const metadata: Metadata = {
   title: "Калькулятор бильярда Колхоз",
@@ -14,7 +16,10 @@ type RootLayoutProps = {
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body className={BILLIARD_CLOTH_CLASS}>
+        <Header />
+        <main>{children}</main>
+      </body>
     </html>
   );
 }

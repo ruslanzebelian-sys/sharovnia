@@ -1,0 +1,1 @@
+export const BILLIARD_CLOTH_CLASS = "bg-billiard-cloth";

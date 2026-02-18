@@ -1,4 +1,5 @@
-﻿@tailwind base;
+@import "../services/theme-cloth-background/clothBackground.css";
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
