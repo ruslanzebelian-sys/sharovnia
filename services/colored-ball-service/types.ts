@@ -15,3 +15,11 @@ export type NormalizeColor = (value: string) => string;
 export type ApplyDefaultColor = (ball: ColoredBall) => ColoredBall;
 
 export type GetRandomDefaultColor = () => string;
+
+export type NormalizeNominalBase = (value: number) => number;
+
+export type NormalizeColoredBallMultiplier = (value: number) => number;
+
+export type GetColoredBallNominalByMultiplier = (baseNominal: number, multiplier: number) => number;
+
+export type GetColoredBallNominalMultiplier = (nominal: number, baseNominal: number) => number;

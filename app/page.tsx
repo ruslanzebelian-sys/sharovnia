@@ -4,8 +4,12 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createColoredBall,
+  getColoredBallNominalByMultiplier,
+  getColoredBallNominalMultiplier,
   getRandomDefaultColor,
+  MAX_COLORED_BALL_MULTIPLIER,
   normalizeColor,
+  normalizeNominalBase,
   normalizeColoredBalls,
   validateColoredBall,
 } from "../services/colored-ball-service";
@@ -103,8 +107,9 @@ function PlayerRow({ index, player, canRemove, onNameChange, onHandicapChange, o
 type ColoredBallRowProps = {
   index: number;
   ball: ColoredBallDraft;
+  baseNominal: number;
   onLabelChange: (id: string, label: string) => void;
-  onNominalChange: (id: string, nominal: number) => void;
+  onMultiplierSelect: (id: string, multiplier: number) => void;
   onColorChange: (id: string, color: string) => void;
   onRemove: (id: string) => void;
 };
@@ -112,19 +117,22 @@ type ColoredBallRowProps = {
 function ColoredBallRow({
   index,
   ball,
+  baseNominal,
   onLabelChange,
-  onNominalChange,
+  onMultiplierSelect,
   onColorChange,
   onRemove,
 }: ColoredBallRowProps) {
+  const [isMultiplierMenuOpen, setIsMultiplierMenuOpen] = useState(false);
   const labelId = `colored-label-${ball.id}`;
   const nominalId = `colored-nominal-${ball.id}`;
   const colorId = `colored-color-${ball.id}`;
+  const selectedMultiplier = getColoredBallNominalMultiplier(ball.nominal, baseNominal);
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
       <div className="mb-3 text-sm text-zinc-400">Шар {index + 1}</div>
-      <div className="grid gap-3 sm:grid-cols-[1fr_160px_120px_auto] sm:items-end">
+      <div className="grid gap-3 sm:grid-cols-[1fr_190px_120px_auto] sm:items-end">
         <div>
           <label htmlFor={labelId} className="mb-1 block text-sm text-zinc-300">
             Название
@@ -143,16 +151,42 @@ function ColoredBallRow({
           <label htmlFor={nominalId} className="mb-1 block text-sm text-zinc-300">
             Номинал
           </label>
-          <input
-            id={nominalId}
-            type="number"
-            min={1}
-            step={1}
-            inputMode="numeric"
-            value={Number.isFinite(ball.nominal) ? ball.nominal : ""}
-            onChange={(e) => onNominalChange(ball.id, e.target.valueAsNumber)}
-            className="h-12 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 text-zinc-100 outline-none transition duration-200 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/30"
-          />
+          <div className="relative">
+            <input
+              id={nominalId}
+              type="number"
+              value={Number.isFinite(ball.nominal) ? ball.nominal : ""}
+              readOnly
+              className="h-12 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 pr-20 text-zinc-100 outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setIsMultiplierMenuOpen((prev) => !prev)}
+              className="absolute right-2 top-1/2 h-8 -translate-y-1/2 rounded-lg border border-zinc-600 bg-zinc-800 px-3 text-xs font-semibold text-zinc-200 transition duration-200 hover:bg-zinc-700"
+            >
+              x{selectedMultiplier}
+            </button>
+            {isMultiplierMenuOpen && (
+              <div className="absolute right-0 top-14 z-20 w-28 rounded-xl border border-zinc-700 bg-zinc-900 p-2 shadow-xl">
+                <div className="mb-1 px-1 text-[11px] text-zinc-400">Выберите x1-x8</div>
+                <div className="grid grid-cols-2 gap-1">
+                  {Array.from({ length: MAX_COLORED_BALL_MULTIPLIER }, (_, idx) => idx + 1).map((multiplier) => (
+                    <button
+                      key={multiplier}
+                      type="button"
+                      onClick={() => {
+                        onMultiplierSelect(ball.id, multiplier);
+                        setIsMultiplierMenuOpen(false);
+                      }}
+                      className="h-8 rounded-md border border-zinc-700 bg-zinc-800 text-xs font-semibold text-zinc-100 transition duration-150 hover:bg-zinc-700"
+                    >
+                      x{multiplier}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div>
@@ -181,14 +215,14 @@ function ColoredBallRow({
   );
 }
 
-function createColoredBallDraft(): ColoredBallDraft {
+function createColoredBallDraft(baseNominal: number): ColoredBallDraft {
   const hasUuid = typeof crypto !== "undefined" && "randomUUID" in crypto;
   const id = hasUuid ? crypto.randomUUID() : `cb-${Date.now()}-${Math.random()}`;
 
   return {
     id,
     label: "",
-    nominal: 1,
+    nominal: getColoredBallNominalByMultiplier(baseNominal, 1),
     color: getRandomDefaultColor(),
   };
 }
@@ -206,7 +240,7 @@ function createPlayerDraft(): PlayerDraft {
 
 export default function StartPage() {
   const router = useRouter();
-  const setActiveGame = useGameStore((state) => state.setActiveGame);
+  const startSeries = useGameStore((state) => state.startSeries);
   const [players, setPlayers] = useState<PlayerDraft[]>([createPlayerDraft()]);
   const [ballPrice, setBallPrice] = useState<number>(100);
   const [coloredModeEnabled, setColoredModeEnabled] = useState<boolean>(false);
@@ -249,6 +283,7 @@ export default function StartPage() {
   }, [coloredBallDrafts]);
 
   const duplicateColoredBallCount = Math.max(validColoredBallCount - normalizedColoredBalls.length, 0);
+  const whiteBallCount = normalizeNominalBase(ballPrice);
   const isValid = normalizedPlayers.length >= 2;
   const canAddPlayer = validatePlayerCount(players.length + 1);
   const canAddColoredBall = coloredBallDrafts.length < 10;
@@ -285,15 +320,21 @@ export default function StartPage() {
 
   const addColoredBall = () => {
     if (!canAddColoredBall) return;
-    setColoredBallDrafts((prev) => [...prev, createColoredBallDraft()]);
+    setColoredBallDrafts((prev) => [...prev, createColoredBallDraft(whiteBallCount)]);
   };
 
   const updateColoredBallLabel = (id: string, label: string) => {
     setColoredBallDrafts((prev) => prev.map((ball) => (ball.id === id ? { ...ball, label } : ball)));
   };
 
-  const updateColoredBallNominal = (id: string, nominal: number) => {
-    setColoredBallDrafts((prev) => prev.map((ball) => (ball.id === id ? { ...ball, nominal } : ball)));
+  const updateColoredBallMultiplier = (id: string, multiplier: number) => {
+    setColoredBallDrafts((prev) =>
+      prev.map((ball) =>
+        ball.id === id
+          ? { ...ball, nominal: getColoredBallNominalByMultiplier(whiteBallCount, multiplier) }
+          : ball
+      )
+    );
   };
 
   const updateColoredBallColor = (id: string, color: string) => {
@@ -319,7 +360,7 @@ export default function StartPage() {
     };
 
     const game = createGameFromConfig(config);
-    setActiveGame(game);
+    startSeries(game);
     router.push("/game");
   };
 
@@ -383,6 +424,9 @@ export default function StartPage() {
 
           <div className="mt-8">
             <h2 className="text-lg font-semibold">Цветные шары</h2>
+            <p className="mt-2 text-sm text-zinc-400">
+              Выбор номинала: x1-x{MAX_COLORED_BALL_MULTIPLIER}, где x = {whiteBallCount} (кол-во белых шаров).
+            </p>
 
             <label className="mt-3 flex cursor-pointer items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
               <span className="text-sm text-zinc-200">Включить цветные шары</span>
@@ -405,8 +449,9 @@ export default function StartPage() {
                     key={ball.id}
                     index={index}
                     ball={ball}
+                    baseNominal={whiteBallCount}
                     onLabelChange={updateColoredBallLabel}
-                    onNominalChange={updateColoredBallNominal}
+                    onMultiplierSelect={updateColoredBallMultiplier}
                     onColorChange={updateColoredBallColor}
                     onRemove={removeColoredBall}
                   />

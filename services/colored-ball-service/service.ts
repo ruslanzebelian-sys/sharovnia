@@ -3,15 +3,20 @@ import type {
   ApplyDefaultColor,
   CalculateColoredBallScore,
   CreateColoredBall,
+  GetColoredBallNominalByMultiplier,
+  GetColoredBallNominalMultiplier,
   GetRandomDefaultColor,
   IsValidHexColor,
+  NormalizeColoredBallMultiplier,
   NormalizeColor,
+  NormalizeNominalBase,
   NormalizeColoredBalls,
   ValidateColoredBall,
 } from "./types";
 
 const MAX_COLORED_BALLS = 10;
 const FALLBACK_COLOR = "#ffffff";
+export const MAX_COLORED_BALL_MULTIPLIER = 8;
 const COLOR_PALETTE = ["#f97316", "#22c55e", "#3b82f6", "#a855f7", "#eab308", "#ef4444"] as const;
 const HEX_COLOR_REGEX = /^#[0-9a-f]{6}$/;
 
@@ -46,6 +51,38 @@ export const applyDefaultColor: ApplyDefaultColor = (ball) => ({
 export const getRandomDefaultColor: GetRandomDefaultColor = () => {
   const index = Math.floor(Math.random() * COLOR_PALETTE.length);
   return COLOR_PALETTE[index];
+};
+
+export const normalizeNominalBase: NormalizeNominalBase = (value) => {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.max(1, Math.trunc(value));
+};
+
+export const normalizeColoredBallMultiplier: NormalizeColoredBallMultiplier = (value) => {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.min(MAX_COLORED_BALL_MULTIPLIER, Math.max(1, Math.trunc(value)));
+};
+
+export const getColoredBallNominalByMultiplier: GetColoredBallNominalByMultiplier = (baseNominal, multiplier) => {
+  const base = normalizeNominalBase(baseNominal);
+  const safeMultiplier = normalizeColoredBallMultiplier(multiplier);
+  return base * safeMultiplier;
+};
+
+export const getColoredBallNominalMultiplier: GetColoredBallNominalMultiplier = (nominal, baseNominal) => {
+  const base = normalizeNominalBase(baseNominal);
+  if (!Number.isFinite(nominal)) {
+    return 1;
+  }
+
+  const rawMultiplier = Math.round(nominal / base);
+  return normalizeColoredBallMultiplier(rawMultiplier);
 };
 
 export const createColoredBall: CreateColoredBall = (label, nominal, color = FALLBACK_COLOR) => ({

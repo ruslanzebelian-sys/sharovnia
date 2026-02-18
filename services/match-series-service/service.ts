@@ -1,0 +1,121 @@
+import type { MatchSeries, Game } from "../../types/game";
+import { computePlayerStats } from "../stats-service";
+import type {
+  ComputeSeriesStats,
+  CreateNextGameFromPrevious,
+  CreateSeries,
+  GetNextGameOrder,
+  ReverseOrder,
+  SeriesStats,
+} from "./types";
+
+function createSeriesId(game: Game): string {
+  return `series-${game.id}`;
+}
+
+export const reverseOrder: ReverseOrder = (order) => {
+  return [...order].reverse();
+};
+
+export const getNextGameOrder: GetNextGameOrder = (baseOrder, gameIndex) => {
+  if (gameIndex % 2 === 0) {
+    return [...baseOrder];
+  }
+
+  return reverseOrder(baseOrder);
+};
+
+export const createSeries: CreateSeries = (initialGame) => {
+  const preparedGame: Game = {
+    ...initialGame,
+    seriesMeta: {
+      gameIndex: 0,
+      isReverse: false,
+    },
+  };
+
+  return {
+    id: createSeriesId(initialGame),
+    games: [preparedGame],
+    baseOrder: [...initialGame.playerOrder],
+    currentIndex: 0,
+  };
+};
+
+export const createNextGameFromPrevious: CreateNextGameFromPrevious = (prevGame, order, index) => {
+  return {
+    ...prevGame,
+    id: `${prevGame.id}-g${index + 1}`,
+    playerOrder: [...order],
+    shotEvents: [],
+    createdAt: Date.now(),
+    seriesMeta: {
+      gameIndex: index,
+      isReverse: index % 2 === 1,
+    },
+  };
+};
+
+function mergeStats(
+  aggregateByPlayerId: Map<string, { coloredCounts: Record<string, number>; penaltyTotal: number }>,
+  stats: ReturnType<typeof computePlayerStats>
+): void {
+  for (const playerStats of stats) {
+    if (!aggregateByPlayerId.has(playerStats.playerId)) {
+      aggregateByPlayerId.set(playerStats.playerId, {
+        coloredCounts: { ...playerStats.coloredCounts },
+        penaltyTotal: playerStats.penaltyTotal,
+      });
+      continue;
+    }
+
+    const target = aggregateByPlayerId.get(playerStats.playerId);
+    if (!target) continue;
+
+    for (const [coloredBallId, count] of Object.entries(playerStats.coloredCounts)) {
+      target.coloredCounts[coloredBallId] = (target.coloredCounts[coloredBallId] ?? 0) + count;
+    }
+
+    target.penaltyTotal += playerStats.penaltyTotal;
+  }
+}
+
+export const computeSeriesStats: ComputeSeriesStats = (series) => {
+  const perGame = series.games.map((game) => {
+    const stats = computePlayerStats(game.players, game.coloredBalls ?? [], game.shotEvents ?? []);
+    const gameIndex = game.seriesMeta?.gameIndex ?? 0;
+    const isReverse = game.seriesMeta?.isReverse ?? false;
+
+    return {
+      gameId: game.id,
+      gameIndex,
+      isReverse,
+      stats,
+    };
+  });
+
+  const reverseGames = perGame.filter((gameStats) => gameStats.isReverse);
+
+  const aggregateByPlayerId = new Map<string, { coloredCounts: Record<string, number>; penaltyTotal: number }>();
+  for (const gameStats of perGame) {
+    mergeStats(aggregateByPlayerId, gameStats.stats);
+  }
+
+  const aggregate = series.games[0]?.players.map((player) => {
+    const merged = aggregateByPlayerId.get(player.id);
+
+    return {
+      playerId: player.id,
+      coloredCounts: merged?.coloredCounts ?? {},
+      penaltyTotal: merged?.penaltyTotal ?? 0,
+    };
+  }) ?? [];
+
+  const result: SeriesStats = {
+    perGame,
+    reverseGames,
+    aggregate,
+  };
+
+  return result;
+};

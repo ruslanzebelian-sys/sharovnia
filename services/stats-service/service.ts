@@ -13,7 +13,7 @@ function createInitialColoredCounts(coloredBalls: ColoredBall[]): Record<string,
 
 export const computePlayerStats: ComputePlayerStats = (players, coloredBalls, events) => {
   const playerIdSet = new Set(players.map((player) => player.id));
-  const coloredBallIdSet = new Set(coloredBalls.map((ball) => ball.id));
+  const coloredBallById = new Map(coloredBalls.map((ball) => [ball.id, ball]));
 
   const statsByPlayerId = new Map<string, PlayerStats>();
 
@@ -35,21 +35,28 @@ export const computePlayerStats: ComputePlayerStats = (players, coloredBalls, ev
       continue;
     }
 
-    if (event.type === "colored") {
-      if (!event.coloredBallId || !coloredBallIdSet.has(event.coloredBallId)) {
+    if (event.source === "colored") {
+      if (!event.coloredBallId || !coloredBallById.has(event.coloredBallId)) {
         continue;
       }
 
-      if (!Number.isFinite(event.value)) {
+      if (!Number.isFinite(event.delta)) {
         continue;
       }
 
-      playerStats.coloredCounts[event.coloredBallId] += Math.trunc(event.value);
+      const coloredBall = coloredBallById.get(event.coloredBallId);
+      if (!coloredBall) {
+        continue;
+      }
+
+      const nominal = Number.isFinite(coloredBall.nominal) && coloredBall.nominal > 0 ? coloredBall.nominal : 1;
+      const countDelta = Math.trunc(event.delta / nominal);
+      playerStats.coloredCounts[event.coloredBallId] += countDelta;
       continue;
     }
 
-    if (event.type === "penalty" && Number.isFinite(event.value)) {
-      playerStats.penaltyTotal += Math.trunc(event.value);
+    if (event.source === "white" && Number.isFinite(event.delta)) {
+      playerStats.penaltyTotal += Math.trunc(event.delta);
     }
   }
 
