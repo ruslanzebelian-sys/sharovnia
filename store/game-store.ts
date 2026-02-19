@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import { calculateNetScores, validateSettlementInput } from "../services/game-settlement-service";
+import {
+  calculateNetScores,
+  MIN_TOTAL_BALLS,
+  validateSettlementInput,
+  validateTotalBalls,
+} from "../services/game-settlement-service";
 import { applyPenalty, getPenaltyImbalance, isPenaltyBalanced } from "../services/session-penalty-service";
 import type { PenaltyImbalance } from "../services/session-penalty-service";
 import { endSessionTimer, startSessionTimer } from "../services/session-timer-service";
@@ -24,6 +29,10 @@ function mergeScores(
   return next;
 }
 
+function getScoreTotal(scores: Record<string, number>): number {
+  return Object.values(scores).reduce((acc, value) => acc + value, 0);
+}
+
 function syncSeriesGame(series: MatchSeries, game: Game): MatchSeries {
   const nextGames = [...series.games];
   nextGames[series.currentIndex] = game;
@@ -39,6 +48,7 @@ type GameStoreState = {
   activeSeries: MatchSeries | null;
   shotEvents: ShotEvent[];
   transitionError: string | null;
+  settlementValidationError: string | null;
   penaltyImbalance: PenaltyImbalance;
   setActiveGame: (game: Game) => void;
   startSeries: (game: Game) => void;
@@ -58,6 +68,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
   activeSeries: null,
   shotEvents: [],
   transitionError: null,
+  settlementValidationError: null,
   penaltyImbalance: {
     isBalanced: true,
     total: 0,
@@ -67,6 +78,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       activeGame: game,
       shotEvents: game.shotEvents ?? [],
       transitionError: null,
+      settlementValidationError: null,
       penaltyImbalance: getPenaltyImbalance(game),
     }),
   startSeries: (game) => {
@@ -81,6 +93,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       activeGame: currentGame,
       shotEvents: currentGame.shotEvents,
       transitionError: null,
+      settlementValidationError: null,
       penaltyImbalance: getPenaltyImbalance(currentGame),
     });
   },
@@ -98,6 +111,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       return {
         activeSeries: nextActiveSeries,
         transitionError: null,
+        settlementValidationError: null,
       };
     }),
   endSessionTimer: () =>
@@ -114,6 +128,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       return {
         activeSeries: nextActiveSeries,
         transitionError: null,
+        settlementValidationError: null,
       };
     }),
   completeSettlement: (settlementData) =>
@@ -121,7 +136,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       if (!state.activeSeries || !state.activeGame) {
         return state;
       }
-      if (state.activeGame.phase !== "ACTIVE") {
+      if (state.activeGame.phase !== "ACTIVE" && state.activeGame.phase !== "SETTLED") {
         return state;
       }
 
@@ -129,6 +144,13 @@ export const useGameStore = create<GameStoreState>((set) => ({
       if (!validation.isValid) {
         return {
           transitionError: "Ошибка ввода счёта",
+        };
+      }
+
+      const totalBallsValidation = validateTotalBalls(validation.normalized);
+      if (!totalBallsValidation.isValid) {
+        return {
+          settlementValidationError: `Недостаточно шаров. Минимум ${MIN_TOTAL_BALLS}.`,
         };
       }
 
@@ -150,18 +172,13 @@ export const useGameStore = create<GameStoreState>((set) => ({
         settlementInput: validation.normalized,
       };
 
-      const nextSeries = syncSeriesGame(
-        {
-          ...state.activeSeries,
-          cumulativeScore: mergeScores(state.activeSeries.cumulativeScore, netScoresResult.netScores),
-        },
-        settledGame
-      );
+      const nextSeries = syncSeriesGame(state.activeSeries, settledGame);
 
       return {
         activeGame: settledGame,
         activeSeries: nextSeries,
         transitionError: null,
+        settlementValidationError: null,
         penaltyImbalance: getPenaltyImbalance(settledGame),
       };
     }),
@@ -175,9 +192,35 @@ export const useGameStore = create<GameStoreState>((set) => ({
           transitionError: "Сначала введите счёт",
         };
       }
+      if (state.settlementValidationError) {
+        return {
+          transitionError: state.settlementValidationError,
+        };
+      }
       if (!isPenaltyBalanced(state.activeGame)) {
         return {
           transitionError: "Ошибка в штрафах",
+        };
+      }
+
+      const currentGameNetScores = calculateNetScores(
+        state.activeGame.playerOrder,
+        state.activeGame.settlementInput,
+        state.activeGame.penalties
+      );
+      if (!currentGameNetScores.isBalanced) {
+        return {
+          transitionError: "Сумма шаров не сходится",
+        };
+      }
+
+      const cumulativeScore = mergeScores(
+        state.activeSeries.cumulativeScore,
+        currentGameNetScores.netScores
+      );
+      if (getScoreTotal(cumulativeScore) !== 0) {
+        return {
+          transitionError: "Сумма общего счёта не сходится",
         };
       }
 
@@ -187,7 +230,13 @@ export const useGameStore = create<GameStoreState>((set) => ({
         shotEvents: [...state.shotEvents],
       };
 
-      const committedSeries = syncSeriesGame(state.activeSeries, committedGame);
+      const committedSeries = syncSeriesGame(
+        {
+          ...state.activeSeries,
+          cumulativeScore,
+        },
+        committedGame
+      );
       const nextIndex = currentIndex + 1;
       const nextOrder = getNextGameOrder(committedSeries.baseOrder, nextIndex);
       const nextGame = createNextGameFromPrevious(committedGame, nextOrder, nextIndex);
@@ -203,6 +252,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
         activeGame: nextGame,
         shotEvents: [],
         transitionError: null,
+        settlementValidationError: null,
         penaltyImbalance: getPenaltyImbalance(nextGame),
       };
     }),
@@ -216,9 +266,25 @@ export const useGameStore = create<GameStoreState>((set) => ({
           transitionError: "Сначала введите счёт",
         };
       }
+      if (state.settlementValidationError) {
+        return {
+          transitionError: state.settlementValidationError,
+        };
+      }
       if (!isPenaltyBalanced(state.activeGame)) {
         return {
           transitionError: "Ошибка в штрафах",
+        };
+      }
+
+      const currentGameNetScores = calculateNetScores(
+        state.activeGame.playerOrder,
+        state.activeGame.settlementInput,
+        state.activeGame.penalties
+      );
+      if (!currentGameNetScores.isBalanced) {
+        return {
+          transitionError: "Сумма шаров не сходится",
         };
       }
 
@@ -234,7 +300,23 @@ export const useGameStore = create<GameStoreState>((set) => ({
       }
       const nextOrder = getReverseOrder(endingOrder, lastScorerId);
 
-      const committedSeries = syncSeriesGame(state.activeSeries, committedGame);
+      const cumulativeScore = mergeScores(
+        state.activeSeries.cumulativeScore,
+        currentGameNetScores.netScores
+      );
+      if (getScoreTotal(cumulativeScore) !== 0) {
+        return {
+          transitionError: "Сумма общего счёта не сходится",
+        };
+      }
+
+      const committedSeries = syncSeriesGame(
+        {
+          ...state.activeSeries,
+          cumulativeScore,
+        },
+        committedGame
+      );
       const nextIndex = currentIndex + 1;
       const nextGameBase = createNextGameFromPrevious(committedGame, nextOrder, nextIndex);
       const nextGame: Game = {
@@ -256,16 +338,18 @@ export const useGameStore = create<GameStoreState>((set) => ({
         activeGame: nextGame,
         shotEvents: [],
         transitionError: null,
+        settlementValidationError: null,
         penaltyImbalance: getPenaltyImbalance(nextGame),
       };
     }),
-  clearTransitionError: () => set({ transitionError: null }),
+  clearTransitionError: () => set({ transitionError: null, settlementValidationError: null }),
   clearGame: () =>
     set({
       activeGame: null,
       activeSeries: null,
       shotEvents: [],
       transitionError: null,
+      settlementValidationError: null,
       penaltyImbalance: {
         isBalanced: true,
         total: 0,
@@ -288,6 +372,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
         return {
           activeGame: nextActiveGame,
           transitionError: null,
+          settlementValidationError: null,
           penaltyImbalance: getPenaltyImbalance(nextActiveGame),
         };
       }
@@ -298,6 +383,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
         activeGame: nextActiveGame,
         activeSeries: nextSeries,
         transitionError: null,
+        settlementValidationError: null,
         penaltyImbalance: getPenaltyImbalance(nextActiveGame),
       };
     }),

@@ -18,6 +18,15 @@ export type NetScoresResult = {
   totalSum: number;
 };
 
+export type TotalBallsValidationResult = {
+  isValid: boolean;
+  total: number;
+};
+
+export type ValidateTotalBalls = (
+  settlementInput: SettlementInputMap
+) => TotalBallsValidationResult;
+
 export type CalculateNetScores = (
   playerOrder: string[],
   settlementInput: SettlementInputMap,

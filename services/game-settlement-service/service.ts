@@ -1,4 +1,6 @@
-import type { CalculateNetScores, ValidateSettlementInput } from "./types";
+import type { CalculateNetScores, ValidateSettlementInput, ValidateTotalBalls } from "./types";
+
+export const MIN_TOTAL_BALLS = 16;
 
 function normalizeSettlementValue(value: number): number {
   if (!Number.isFinite(value)) {
@@ -52,5 +54,17 @@ export const calculateNetScores: CalculateNetScores = (
     netScores,
     isBalanced: totalSum === 0,
     totalSum,
+  };
+};
+
+export const validateTotalBalls: ValidateTotalBalls = (settlementInput) => {
+  const total = Object.values(settlementInput).reduce((acc, value) => {
+    const normalized = Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
+    return acc + normalized;
+  }, 0);
+
+  return {
+    isValid: total >= MIN_TOTAL_BALLS,
+    total,
   };
 };

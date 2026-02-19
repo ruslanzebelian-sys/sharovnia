@@ -21,6 +21,7 @@ export default function GamePage() {
   const shotEvents = useGameStore((state) => state.shotEvents);
   const addShotEvent = useGameStore((state) => state.addShotEvent);
   const completeSettlement = useGameStore((state) => state.completeSettlement);
+  const settlementValidationError = useGameStore((state) => state.settlementValidationError);
   const penaltyImbalance = useGameStore((state) => state.penaltyImbalance);
   const transitionError = useGameStore((state) => state.transitionError);
   const clearTransitionError = useGameStore((state) => state.clearTransitionError);
@@ -123,6 +124,7 @@ export default function GamePage() {
     Boolean(activeSeries) &&
     Boolean(activeGame) &&
     isSettled &&
+    settlementValidationError === null &&
     shotEvents.length > 0 &&
     selectedLastScorerId.length > 0;
 
@@ -171,6 +173,11 @@ export default function GamePage() {
                   </button>
                 </div>
               )}
+              {settlementValidationError && (
+                <div className="mb-3 rounded-lg border border-yellow-600 bg-yellow-900/40 px-4 py-2 text-yellow-300">
+                  {settlementValidationError}
+                </div>
+              )}
 
               <div className="flex flex-wrap items-center gap-3">
                 <button
@@ -183,20 +190,18 @@ export default function GamePage() {
                 <button
                   type="button"
                   onClick={startNextSeriesGame}
-                  disabled={!isSettled}
+                  disabled={!isSettled || settlementValidationError !== null}
                   className="h-11 rounded-xl border border-zinc-700 bg-zinc-800 px-4 text-sm font-semibold text-zinc-100 transition duration-200 hover:bg-zinc-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Следующая игра
                 </button>
-                {isActivePhase && (
-                  <button
-                    type="button"
-                    onClick={() => setIsSettlementModalOpen(true)}
-                    className="h-11 rounded-xl border border-cyan-500/70 bg-cyan-500/15 px-4 text-sm font-semibold text-cyan-200 transition duration-200 hover:bg-cyan-500/25 active:scale-[0.98]"
-                  >
-                    Ввести счёт
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setIsSettlementModalOpen(true)}
+                  className="h-11 rounded-xl border border-cyan-500/70 bg-cyan-500/15 px-4 text-sm font-semibold text-cyan-200 transition duration-200 hover:bg-cyan-500/25 active:scale-[0.98]"
+                >
+                  {isActivePhase ? "Ввести счёт" : "Редактировать счёт"}
+                </button>
               </div>
 
               <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200">
@@ -308,10 +313,15 @@ export default function GamePage() {
         isOpen={isSettlementModalOpen}
         players={orderedPlayers}
         playerOrder={activeGame?.playerOrder ?? []}
+        penalties={activeGame?.penalties ?? {}}
+        initialInput={activeGame?.settlementInput ?? {}}
         onCancel={() => setIsSettlementModalOpen(false)}
         onConfirm={(inputMap) => {
           completeSettlement(inputMap);
-          setIsSettlementModalOpen(false);
+          const nextState = useGameStore.getState();
+          if (!nextState.settlementValidationError && !nextState.transitionError) {
+            setIsSettlementModalOpen(false);
+          }
         }}
       />
 

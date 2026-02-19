@@ -1,12 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  calculateNetScores,
+  MIN_TOTAL_BALLS,
+  validateSettlementInput,
+  validateTotalBalls,
+} from "../../services/game-settlement-service";
 import type { Player } from "../../types/game";
 
 type SettlementModalProps = {
   isOpen: boolean;
   players: Player[];
   playerOrder: string[];
+  penalties: Record<string, number>;
+  initialInput: Record<string, number>;
   onConfirm: (inputMap: Record<string, number>) => void;
   onCancel: () => void;
 };
@@ -24,7 +32,15 @@ function normalizeInput(rawValue: string): string {
   return digits.replace(/^0+(?=\d)/, "");
 }
 
-export function SettlementModal({ isOpen, players, playerOrder, onConfirm, onCancel }: SettlementModalProps) {
+export function SettlementModal({
+  isOpen,
+  players,
+  playerOrder,
+  penalties,
+  initialInput,
+  onConfirm,
+  onCancel,
+}: SettlementModalProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [inputs, setInputs] = useState<Record<string, string>>({});
 
@@ -49,6 +65,29 @@ export function SettlementModal({ isOpen, players, playerOrder, onConfirm, onCan
       .filter((row): row is NonNullable<typeof row> => Boolean(row));
   }, [playerById, playerOrder]);
 
+  const numericInputMap = useMemo(() => {
+    const next: Record<string, number> = {};
+
+    for (const playerId of playerOrder) {
+      const value = inputs[playerId] ?? "0";
+      next[playerId] = Number(value.length ? value : 0);
+    }
+
+    return next;
+  }, [inputs, playerOrder]);
+
+  const normalizedInput = useMemo(() => {
+    return validateSettlementInput(players, numericInputMap).normalized;
+  }, [numericInputMap, players]);
+
+  const totalBallsValidation = useMemo(() => {
+    return validateTotalBalls(normalizedInput);
+  }, [normalizedInput]);
+
+  const netScorePreview = useMemo(() => {
+    return calculateNetScores(playerOrder, normalizedInput, penalties);
+  }, [playerOrder, normalizedInput, penalties]);
+
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -56,10 +95,12 @@ export function SettlementModal({ isOpen, players, playerOrder, onConfirm, onCan
 
     const initialInputs: Record<string, string> = {};
     for (const playerId of playerOrder) {
-      initialInputs[playerId] = "0";
+      const value = initialInput[playerId];
+      const normalized = Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
+      initialInputs[playerId] = String(normalized);
     }
     setInputs(initialInputs);
-  }, [isOpen, playerOrder]);
+  }, [initialInput, isOpen, playerOrder]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -122,6 +163,30 @@ export function SettlementModal({ isOpen, players, playerOrder, onConfirm, onCan
           ))}
         </div>
 
+        {!totalBallsValidation.isValid && (
+          <div className="mt-4 rounded-lg border border-yellow-600 bg-yellow-900/40 px-4 py-2 text-sm text-yellow-300">
+            {`Внесено ${totalBallsValidation.total} шаров. Минимум ${MIN_TOTAL_BALLS}.`}
+          </div>
+        )}
+
+        <div className="mt-4 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-xs text-zinc-300">
+          <div className="mb-2 font-semibold text-zinc-200">Предпросмотр общего счёта</div>
+          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+            {playerOrder.map((playerId) => {
+              const player = playerById.get(playerId);
+              const value = netScorePreview.netScores[playerId] ?? 0;
+              const signed = value > 0 ? `+${value}` : `${value}`;
+
+              return (
+                <div key={`preview-${playerId}`} className="flex items-center justify-between">
+                  <span>{player?.name ?? playerId}</span>
+                  <span>{signed}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
@@ -132,15 +197,7 @@ export function SettlementModal({ isOpen, players, playerOrder, onConfirm, onCan
           </button>
           <button
             type="button"
-            onClick={() => {
-              const inputMap: Record<string, number> = {};
-              for (const playerId of playerOrder) {
-                const value = inputs[playerId] ?? "0";
-                inputMap[playerId] = Number(value.length ? value : 0);
-              }
-
-              onConfirm(inputMap);
-            }}
+            onClick={() => onConfirm(numericInputMap)}
             className="h-10 rounded-lg bg-cyan-500 px-4 text-sm font-semibold text-zinc-950 transition duration-200 hover:bg-cyan-400"
           >
             Подтвердить
