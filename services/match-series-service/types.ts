@@ -1,4 +1,4 @@
-import type { MatchSeries, Game } from "../../types/game";
+import type { Game, MatchSeries, ShotEvent } from "../../types/game";
 import type { PlayerStats } from "../stats-service";
 
 export type CreateSeries = (initialGame: Game) => MatchSeries;
@@ -23,3 +23,5 @@ export type SeriesStats = {
 };
 
 export type ComputeSeriesStats = (series: MatchSeries) => SeriesStats;
+
+export type GetLastScoringPlayer = (events: ShotEvent[]) => string | null;

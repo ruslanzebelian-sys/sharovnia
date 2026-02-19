@@ -23,6 +23,11 @@ export type SeriesGameMeta = {
   isReverse: boolean;
 };
 
+export type SessionTimer = {
+  startedAt: number | null;
+  endedAt: number | null;
+};
+
 export type GameConfig = {
   players: Player[];
   ballPrice: number;
@@ -48,4 +53,5 @@ export type MatchSeries = {
   games: Game[];
   baseOrder: string[];
   currentIndex: number;
+  sessionTimer: SessionTimer;
 };

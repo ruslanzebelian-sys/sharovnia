@@ -4,6 +4,7 @@ import type {
   ComputeSeriesStats,
   CreateNextGameFromPrevious,
   CreateSeries,
+  GetLastScoringPlayer,
   GetNextGameOrder,
   ReverseOrder,
   SeriesStats,
@@ -39,6 +40,10 @@ export const createSeries: CreateSeries = (initialGame) => {
     games: [preparedGame],
     baseOrder: [...initialGame.playerOrder],
     currentIndex: 0,
+    sessionTimer: {
+      startedAt: null,
+      endedAt: null,
+    },
   };
 };
 
@@ -54,6 +59,18 @@ export const createNextGameFromPrevious: CreateNextGameFromPrevious = (prevGame,
       isReverse: index % 2 === 1,
     },
   };
+};
+
+export const getLastScoringPlayer: GetLastScoringPlayer = (events) => {
+  let lastScoringPlayerId: string | null = null;
+
+  for (const event of events) {
+    if (event.delta > 0) {
+      lastScoringPlayerId = event.playerId;
+    }
+  }
+
+  return lastScoringPlayerId;
 };
 
 function mergeStats(

@@ -1,5 +1,5 @@
 import type { Player } from "../../types/game";
-import type { ShufflePlayers } from "./types";
+import type { GetReverseOrder, ShufflePlayers } from "./types";
 
 function createSeededRandom(seed: number): () => number {
   let state = seed >>> 0;
@@ -22,4 +22,19 @@ export const shufflePlayers: ShufflePlayers = (players, seed) => {
   }
 
   return shuffled;
+};
+
+export const getReverseOrder: GetReverseOrder = (endingOrder, lastScoringPlayerId) => {
+  if (endingOrder.length <= 1) {
+    return [...endingOrder];
+  }
+
+  const reversed = [...endingOrder].reverse();
+  const scorerIndex = reversed.indexOf(lastScoringPlayerId);
+  if (scorerIndex === -1) {
+    return [...endingOrder];
+  }
+
+  const remaining = reversed.filter((playerId) => playerId !== lastScoringPlayerId);
+  return [lastScoringPlayerId, ...remaining];
 };

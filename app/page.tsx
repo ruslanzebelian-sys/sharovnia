@@ -241,7 +241,13 @@ function createPlayerDraft(): PlayerDraft {
 export default function StartPage() {
   const router = useRouter();
   const startSeries = useGameStore((state) => state.startSeries);
-  const [players, setPlayers] = useState<PlayerDraft[]>([createPlayerDraft()]);
+  const [players, setPlayers] = useState<PlayerDraft[]>([
+    {
+      id: "pl-initial-1",
+      name: "",
+      handicap: 0,
+    },
+  ]);
   const [ballPrice, setBallPrice] = useState<number>(100);
   const [coloredModeEnabled, setColoredModeEnabled] = useState<boolean>(false);
   const [coloredBallDrafts, setColoredBallDrafts] = useState<ColoredBallDraft[]>([]);

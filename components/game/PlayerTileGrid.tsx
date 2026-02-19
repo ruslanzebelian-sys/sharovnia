@@ -80,10 +80,6 @@ export function PlayerTileGrid({ players, coloredBalls, stats, addShotEvent }: P
                   <div className="truncate text-base font-semibold text-zinc-100">{player.name}</div>
                   <div className="mt-1 text-sm text-zinc-400">Фора: {player.handicap}</div>
 
-                  <div className="mt-3 text-sm text-zinc-300">
-                    Нетто: <span className="font-semibold text-zinc-100">{formatSigned(penaltyTotal)}</span>
-                  </div>
-
                   <div className="mt-2 text-sm text-zinc-300">
                     Штрафы: <span className="font-semibold text-zinc-100">{formatSigned(penaltyTotal)}</span>
                   </div>

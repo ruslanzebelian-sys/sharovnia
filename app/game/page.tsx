@@ -1,18 +1,25 @@
-﻿"use client";
+"use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PlayerTileGrid } from "../../components/game/PlayerTileGrid";
 import { StatsTable } from "../../components/game/StatsTable";
+import { formatSessionTime, getSessionElapsed } from "../../services/session-timer-service";
 import { computePlayerStats } from "../../services/stats-service";
 import { useGameStore } from "../../store/game-store";
 
 export default function GamePage() {
+  const [selectedLastScorerId, setSelectedLastScorerId] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+
   const activeGame = useGameStore((state) => state.activeGame);
   const activeSeries = useGameStore((state) => state.activeSeries);
   const shotEvents = useGameStore((state) => state.shotEvents);
   const addShotEvent = useGameStore((state) => state.addShotEvent);
   const randomizePlayerOrder = useGameStore((state) => state.randomizePlayerOrder);
+  const startSessionTimer = useGameStore((state) => state.startSessionTimer);
+  const endSessionTimer = useGameStore((state) => state.endSessionTimer);
   const startNextSeriesGame = useGameStore((state) => state.startNextSeriesGame);
+  const reverseGameOrder = useGameStore((state) => state.reverseGameOrder);
 
   const orderedPlayers = useMemo(() => {
     if (!activeGame) {
@@ -35,6 +42,40 @@ export default function GamePage() {
 
     return computePlayerStats(orderedPlayers, coloredBalls, shotEvents);
   }, [activeGame, orderedPlayers, coloredBalls, shotEvents]);
+
+  useEffect(() => {
+    setSelectedLastScorerId("");
+  }, [activeGame?.id]);
+
+  const timerStartedAt = activeSeries?.sessionTimer.startedAt ?? null;
+  const timerEndedAt = activeSeries?.sessionTimer.endedAt ?? null;
+  const isSessionTimerStarted = timerStartedAt !== null;
+  const isSessionTimerRunning = timerStartedAt !== null && timerEndedAt === null;
+
+  useEffect(() => {
+    setNow(Date.now());
+
+    if (!isSessionTimerRunning) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeSeries?.id, isSessionTimerRunning]);
+
+  const elapsedMs = activeSeries ? getSessionElapsed(activeSeries, now) : 0;
+  const timerLabel = isSessionTimerStarted ? formatSessionTime(elapsedMs) : "Запустить";
+  const canEndSession = isSessionTimerStarted && timerEndedAt === null;
+
+  const canReverse =
+    Boolean(activeSeries) &&
+    Boolean(activeGame) &&
+    (activeGame?.seriesMeta?.gameIndex ?? 0) >= 0 &&
+    shotEvents.length > 0 &&
+    selectedLastScorerId.length > 0;
 
   return (
     <main className="min-h-screen px-4 py-8 text-zinc-100">
@@ -63,10 +104,78 @@ export default function GamePage() {
                 </button>
               </div>
 
-              <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200">
-                <span>Игра #{(activeGame.seriesMeta?.gameIndex ?? activeSeries?.currentIndex ?? 0) + 1}</span>
+              <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200">
+                <span>
+                  Игра #{(activeGame.seriesMeta?.gameIndex ?? activeSeries?.currentIndex ?? 0) + 1}
+                  {activeGame.seriesMeta?.isReverse ? " (реверс)" : ""}
+                </span>
                 <span className="text-zinc-500">•</span>
-                <span>Реверс: {activeGame.seriesMeta?.isReverse ? "да" : "нет"}</span>
+                <span>Время за столом</span>
+                <button
+                  type="button"
+                  onClick={startSessionTimer}
+                  disabled={isSessionTimerStarted}
+                  className={`inline-flex w-[136px] justify-center rounded-lg border px-3 py-1.5 text-sm font-semibold tabular-nums transition duration-200 ${
+                    isSessionTimerStarted
+                      ? "border-cyan-500/60 bg-cyan-500/15 text-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.16)]"
+                      : "border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+                  } disabled:cursor-not-allowed disabled:opacity-90`}
+                >
+                  {timerLabel}
+                </button>
+                {activeGame.seriesMeta?.isReverse && (
+                  <>
+                    <span className="text-zinc-500">•</span>
+                    <span>Порядок изменён</span>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={endSessionTimer}
+                  disabled={!canEndSession}
+                  className="h-11 rounded-xl border border-rose-500/60 bg-rose-500/10 px-4 text-sm font-semibold text-rose-200 transition duration-200 hover:bg-rose-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Завершить игру полностью
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+                <p className="text-sm text-zinc-300">Кто забил последний шар?</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {orderedPlayers.map((player) => {
+                    const isSelected = selectedLastScorerId === player.id;
+
+                    return (
+                      <button
+                        key={player.id}
+                        type="button"
+                        onClick={() => setSelectedLastScorerId(player.id)}
+                        aria-pressed={isSelected}
+                        className={`h-10 rounded-lg border px-3 text-sm font-medium transition duration-200 ${
+                          isSelected
+                            ? "border-cyan-500 bg-cyan-500/15 text-cyan-200"
+                            : "border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+                        }`}
+                      >
+                        {player.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => reverseGameOrder(selectedLastScorerId)}
+                  disabled={!canReverse}
+                  className="h-11 rounded-xl border border-zinc-700 bg-zinc-800 px-4 text-sm font-semibold text-zinc-100 transition duration-200 hover:bg-zinc-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Реверс
+                </button>
               </div>
 
               <h2 className="mt-5 text-lg font-semibold">Игроки</h2>
