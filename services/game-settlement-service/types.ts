@@ -21,5 +21,5 @@ export type NetScoresResult = {
 export type CalculateNetScores = (
   playerOrder: string[],
   settlementInput: SettlementInputMap,
-  sessionPenaltyBalance: Record<string, number>
+  penalties: Record<string, number>
 ) => NetScoresResult;

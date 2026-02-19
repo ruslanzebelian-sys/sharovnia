@@ -1,5 +1,4 @@
 import type { MatchSeries, Game } from "../../types/game";
-import { resetSessionPenalties } from "../session-penalty-service";
 import { computePlayerStats } from "../stats-service";
 import type {
   ComputeSeriesStats,
@@ -13,6 +12,16 @@ import type {
 
 function createSeriesId(game: Game): string {
   return `series-${game.id}`;
+}
+
+function createZeroScores(players: Game["players"]): Record<string, number> {
+  const scores: Record<string, number> = {};
+
+  for (const player of players) {
+    scores[player.id] = 0;
+  }
+
+  return scores;
 }
 
 export const reverseOrder: ReverseOrder = (order) => {
@@ -30,6 +39,8 @@ export const getNextGameOrder: GetNextGameOrder = (baseOrder, gameIndex) => {
 export const createSeries: CreateSeries = (initialGame) => {
   const preparedGame: Game = {
     ...initialGame,
+    penalties: initialGame.penalties ?? {},
+    settlementInput: initialGame.settlementInput ?? {},
     phase: initialGame.phase ?? "ACTIVE",
     seriesMeta: {
       gameIndex: 0,
@@ -46,10 +57,10 @@ export const createSeries: CreateSeries = (initialGame) => {
       startedAt: null,
       endedAt: null,
     },
-    sessionPenaltyBalance: {},
+    cumulativeScore: createZeroScores(preparedGame.players),
   };
 
-  return resetSessionPenalties(baseSeries);
+  return baseSeries;
 };
 
 export const createNextGameFromPrevious: CreateNextGameFromPrevious = (prevGame, order, index) => {
@@ -58,6 +69,8 @@ export const createNextGameFromPrevious: CreateNextGameFromPrevious = (prevGame,
     id: `${prevGame.id}-g${index + 1}`,
     playerOrder: [...order],
     shotEvents: [],
+    penalties: {},
+    settlementInput: {},
     createdAt: Date.now(),
     phase: "ACTIVE",
     seriesMeta: {

@@ -1,16 +1,16 @@
-import type { MatchSeries } from "../../types/game";
+import type { Game } from "../../types/game";
 
-export type ApplyPenalty = (series: MatchSeries, playerId: string, delta: number) => MatchSeries;
+export type ApplyPenalty = (game: Game, playerId: string, delta: number) => Game;
 
-export type GetSessionPenalty = (series: MatchSeries, playerId: string) => number;
+export type GetPenalty = (game: Game, playerId: string) => number;
 
-export type ResetSessionPenalties = (series: MatchSeries) => MatchSeries;
+export type ResetPenalties = (game: Game) => Game;
 
-export type IsPenaltyBalanced = (series: MatchSeries) => boolean;
+export type IsPenaltyBalanced = (game: Game) => boolean;
 
 export type PenaltyImbalance = {
   isBalanced: boolean;
   total: number;
 };
 
-export type GetPenaltyImbalance = (series: MatchSeries) => PenaltyImbalance;
+export type GetPenaltyImbalance = (game: Game) => PenaltyImbalance;

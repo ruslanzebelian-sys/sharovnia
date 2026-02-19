@@ -4,7 +4,7 @@ import type { PlayerStats } from "../../services/stats-service";
 type StatsTableProps = {
   players: Player[];
   coloredBalls: ColoredBall[];
-  sessionPenaltyBalance: Record<string, number>;
+  penalties: Record<string, number>;
   stats: PlayerStats[];
 };
 
@@ -32,7 +32,7 @@ function getPenaltyClassName(value: number): string {
   return "text-zinc-400";
 }
 
-export function StatsTable({ players, coloredBalls, sessionPenaltyBalance, stats }: StatsTableProps) {
+export function StatsTable({ players, coloredBalls, penalties, stats }: StatsTableProps) {
   const playerById = new Map(players.map((player) => [player.id, player]));
 
   return (
@@ -70,10 +70,10 @@ export function StatsTable({ players, coloredBalls, sessionPenaltyBalance, stats
                 ))}
                 <td
                   className={`border-b border-zinc-800 px-4 py-3 font-semibold ${getPenaltyClassName(
-                    sessionPenaltyBalance[playerStats.playerId] ?? 0
+                    penalties[playerStats.playerId] ?? 0
                   )}`}
                 >
-                  {formatPenalty(sessionPenaltyBalance[playerStats.playerId] ?? 0)}
+                  {formatPenalty(penalties[playerStats.playerId] ?? 0)}
                 </td>
               </tr>
             );

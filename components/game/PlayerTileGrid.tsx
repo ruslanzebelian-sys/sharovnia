@@ -21,8 +21,8 @@ type PlayerTileGridProps = {
   players: Player[];
   coloredBalls: ColoredBall[];
   penaltyNominal: number;
-  sessionPenaltyBalance: Record<string, number>;
-  currentNetScores: Record<string, number>;
+  penalties: Record<string, number>;
+  cumulativeScore: Record<string, number>;
   penaltyImbalance: PenaltyImbalance;
   interactionsDisabled?: boolean;
   stats: PlayerStats[];
@@ -49,8 +49,8 @@ export function PlayerTileGrid({
   players,
   coloredBalls,
   penaltyNominal,
-  sessionPenaltyBalance,
-  currentNetScores,
+  penalties,
+  cumulativeScore,
   penaltyImbalance,
   interactionsDisabled = false,
   stats,
@@ -82,8 +82,8 @@ export function PlayerTileGrid({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {players.map((player) => {
           const playerStats = statsByPlayerId.get(player.id);
-          const penaltyTotal = sessionPenaltyBalance[player.id] ?? 0;
-          const netScore = currentNetScores[player.id] ?? 0;
+          const penaltyTotal = penalties[player.id] ?? 0;
+          const netScore = cumulativeScore[player.id] ?? 0;
           const hasPenaltyHighlight = !penaltyImbalance.isBalanced && penaltyTotal !== 0;
 
           return (

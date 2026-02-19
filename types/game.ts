@@ -48,6 +48,8 @@ export type Game = {
   players: Player[];
   playerOrder: string[];
   shotEvents: ShotEvent[];
+  penalties: Record<string, number>;
+  settlementInput: Record<string, number>;
   ballPrice: number;
   createdAt: number;
   coloredModeEnabled: boolean;
@@ -63,5 +65,5 @@ export type MatchSeries = {
   baseOrder: string[];
   currentIndex: number;
   sessionTimer: SessionTimer;
-  sessionPenaltyBalance: Record<string, number>;
+  cumulativeScore: Record<string, number>;
 };

@@ -18,6 +18,8 @@ export const createGameFromConfig: CreateGameFromConfig = (config) => {
     players,
     playerOrder: players.map((player) => player.id),
     shotEvents: [],
+    penalties: {},
+    settlementInput: {},
     ballPrice: config.ballPrice,
     createdAt: config.createdAt,
     coloredModeEnabled: config.coloredModeEnabled,

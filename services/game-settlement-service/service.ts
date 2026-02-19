@@ -28,7 +28,7 @@ export const validateSettlementInput: ValidateSettlementInput = (players, inputM
 export const calculateNetScores: CalculateNetScores = (
   playerOrder,
   settlementInput,
-  sessionPenaltyBalance
+  penalties
 ) => {
   const netScores: Record<string, number> = {};
 
@@ -41,9 +41,7 @@ export const calculateNetScores: CalculateNetScores = (
     const scoredAgainstPlayer = Number.isFinite(settlementInput[nextPlayerId])
       ? Math.trunc(settlementInput[nextPlayerId])
       : 0;
-    const penalty = Number.isFinite(sessionPenaltyBalance[playerId])
-      ? Math.trunc(sessionPenaltyBalance[playerId])
-      : 0;
+    const penalty = Number.isFinite(penalties[playerId]) ? Math.trunc(penalties[playerId]) : 0;
 
     netScores[playerId] = scoredByPlayer - scoredAgainstPlayer + penalty;
   }

@@ -19,7 +19,6 @@ export default function GamePage() {
   const activeGame = useGameStore((state) => state.activeGame);
   const activeSeries = useGameStore((state) => state.activeSeries);
   const shotEvents = useGameStore((state) => state.shotEvents);
-  const currentNetScores = useGameStore((state) => state.currentNetScores);
   const addShotEvent = useGameStore((state) => state.addShotEvent);
   const completeSettlement = useGameStore((state) => state.completeSettlement);
   const penaltyImbalance = useGameStore((state) => state.penaltyImbalance);
@@ -45,23 +44,41 @@ export default function GamePage() {
 
   const coloredBalls = activeGame?.coloredBalls ?? [];
   const penaltyNominal = normalizePenaltyNominal(activeGame?.rules?.penaltyNominal ?? DEFAULT_PENALTY_NOMINAL);
-  const sessionPenaltyBalance = useMemo(() => {
+  const penalties = useMemo(() => {
     const base: Record<string, number> = {};
 
     for (const player of orderedPlayers) {
       base[player.id] = 0;
     }
 
-    if (!activeSeries?.sessionPenaltyBalance) {
+    if (!activeGame?.penalties) {
       return base;
     }
 
-    for (const [playerId, value] of Object.entries(activeSeries.sessionPenaltyBalance)) {
+    for (const [playerId, value] of Object.entries(activeGame.penalties)) {
       base[playerId] = Number.isFinite(value) ? Math.trunc(value) : 0;
     }
 
     return base;
-  }, [activeSeries?.sessionPenaltyBalance, orderedPlayers]);
+  }, [activeGame?.penalties, orderedPlayers]);
+
+  const cumulativeScore = useMemo(() => {
+    const base: Record<string, number> = {};
+
+    for (const player of orderedPlayers) {
+      base[player.id] = 0;
+    }
+
+    if (!activeSeries?.cumulativeScore) {
+      return base;
+    }
+
+    for (const [playerId, value] of Object.entries(activeSeries.cumulativeScore)) {
+      base[playerId] = Number.isFinite(value) ? Math.trunc(value) : 0;
+    }
+
+    return base;
+  }, [activeSeries?.cumulativeScore, orderedPlayers]);
 
   const playerStats = useMemo(() => {
     if (!activeGame) {
@@ -253,8 +270,8 @@ export default function GamePage() {
                   players={orderedPlayers}
                   coloredBalls={coloredBalls}
                   penaltyNominal={penaltyNominal}
-                  sessionPenaltyBalance={sessionPenaltyBalance}
-                  currentNetScores={currentNetScores}
+                  penalties={penalties}
+                  cumulativeScore={cumulativeScore}
                   penaltyImbalance={penaltyImbalance}
                   interactionsDisabled={!isActivePhase}
                   stats={playerStats}
@@ -267,7 +284,7 @@ export default function GamePage() {
                 <StatsTable
                   players={orderedPlayers}
                   coloredBalls={coloredBalls}
-                  sessionPenaltyBalance={sessionPenaltyBalance}
+                  penalties={penalties}
                   stats={playerStats}
                 />
               </div>
