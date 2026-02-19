@@ -55,8 +55,8 @@ export const computePlayerStats: ComputePlayerStats = (players, coloredBalls, ev
       continue;
     }
 
-    if (event.source === "white" && Number.isFinite(event.delta)) {
-      playerStats.penaltyTotal += Math.trunc(event.delta);
+    if (event.source === "penalty") {
+      continue;
     }
   }
 

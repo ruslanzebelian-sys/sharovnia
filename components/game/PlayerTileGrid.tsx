@@ -1,7 +1,8 @@
 ﻿"use client";
 
 import { useMemo, useState } from "react";
-import { createDeltaEvent } from "../../services/shot-event-service";
+import { createDeltaEvent, createPenaltyEvent } from "../../services/shot-event-service";
+import type { PenaltyImbalance } from "../../services/session-penalty-service";
 import type { PlayerStats } from "../../services/stats-service";
 import type { ColoredBall, Player, ShotEvent } from "../../types/game";
 import { PlayerActionPopup } from "./PlayerActionPopup";
@@ -19,6 +20,9 @@ type ActivePopupPlayer = {
 type PlayerTileGridProps = {
   players: Player[];
   coloredBalls: ColoredBall[];
+  penaltyNominal: number;
+  sessionPenaltyBalance: Record<string, number>;
+  penaltyImbalance: PenaltyImbalance;
   stats: PlayerStats[];
   addShotEvent: (event: ShotEvent) => void;
 };
@@ -39,7 +43,15 @@ function formatSigned(value: number): string {
   return "0";
 }
 
-export function PlayerTileGrid({ players, coloredBalls, stats, addShotEvent }: PlayerTileGridProps) {
+export function PlayerTileGrid({
+  players,
+  coloredBalls,
+  penaltyNominal,
+  sessionPenaltyBalance,
+  penaltyImbalance,
+  stats,
+  addShotEvent,
+}: PlayerTileGridProps) {
   const [activePopupPlayer, setActivePopupPlayer] = useState<ActivePopupPlayer | null>(null);
   const [popupPosition, setPopupPosition] = useState<PopupPosition | null>(null);
 
@@ -66,14 +78,19 @@ export function PlayerTileGrid({ players, coloredBalls, stats, addShotEvent }: P
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {players.map((player) => {
           const playerStats = statsByPlayerId.get(player.id);
-          const penaltyTotal = playerStats?.penaltyTotal ?? 0;
+          const penaltyTotal = sessionPenaltyBalance[player.id] ?? 0;
+          const hasPenaltyHighlight = !penaltyImbalance.isBalanced && penaltyTotal !== 0;
 
           return (
             <button
               key={player.id}
               type="button"
               onClick={(e) => openPopup(player.id, player.name, e.currentTarget)}
-              className="h-full min-h-[180px] w-full rounded-xl border border-zinc-700 bg-zinc-900 p-4 text-left transition duration-200 hover:border-cyan-400/50 hover:shadow-[0_0_20px_rgba(34,211,238,0.12)]"
+              className={`h-full min-h-[180px] w-full rounded-xl border p-4 text-left transition duration-200 hover:border-cyan-400/50 hover:shadow-[0_0_20px_rgba(34,211,238,0.12)] ${
+                hasPenaltyHighlight
+                  ? "border-red-500 ring-1 ring-red-600 bg-red-900/10"
+                  : "border-zinc-700 bg-zinc-900"
+              }`}
             >
               <div className="flex h-full flex-col justify-between">
                 <div>
@@ -108,6 +125,7 @@ export function PlayerTileGrid({ players, coloredBalls, stats, addShotEvent }: P
         isOpen={Boolean(activePopupPlayer && popupPosition)}
         playerName={activePopupPlayer?.name ?? ""}
         coloredBalls={coloredBalls}
+        penaltyNominal={penaltyNominal}
         position={popupPosition}
         onClose={() => {
           setActivePopupPlayer(null);
@@ -116,6 +134,11 @@ export function PlayerTileGrid({ players, coloredBalls, stats, addShotEvent }: P
         onAction={(delta, source, coloredBallId) => {
           if (!activePopupPlayer) return;
           const event = createDeltaEvent(activePopupPlayer.id, delta, source, coloredBallId);
+          addShotEvent(event);
+        }}
+        onPenaltyAction={(isPositive) => {
+          if (!activePopupPlayer) return;
+          const event = createPenaltyEvent(activePopupPlayer.id, isPositive, penaltyNominal);
           addShotEvent(event);
         }}
       />

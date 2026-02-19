@@ -1,4 +1,5 @@
 import type { MatchSeries, Game } from "../../types/game";
+import { resetSessionPenalties } from "../session-penalty-service";
 import { computePlayerStats } from "../stats-service";
 import type {
   ComputeSeriesStats,
@@ -35,7 +36,7 @@ export const createSeries: CreateSeries = (initialGame) => {
     },
   };
 
-  return {
+  const baseSeries: MatchSeries = {
     id: createSeriesId(initialGame),
     games: [preparedGame],
     baseOrder: [...initialGame.playerOrder],
@@ -44,7 +45,10 @@ export const createSeries: CreateSeries = (initialGame) => {
       startedAt: null,
       endedAt: null,
     },
+    sessionPenaltyBalance: {},
   };
+
+  return resetSessionPenalties(baseSeries);
 };
 
 export const createNextGameFromPrevious: CreateNextGameFromPrevious = (prevGame, order, index) => {

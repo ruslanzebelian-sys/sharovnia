@@ -15,8 +15,12 @@ import {
 } from "../services/colored-ball-service";
 import { createGameFromConfig } from "../services/game-engine-service";
 import {
+  DEFAULT_PENALTY_NOMINAL,
+  MAX_PENALTY_NOMINAL,
   MAX_PLAYERS_PER_GAME,
+  MIN_PENALTY_NOMINAL,
   clampPlayers,
+  normalizePenaltyNominal,
   validatePlayerCount,
 } from "../services/game-rules-service";
 import { normalizeHandicap, validateHandicap } from "../services/handicap-service";
@@ -249,6 +253,7 @@ export default function StartPage() {
     },
   ]);
   const [ballPrice, setBallPrice] = useState<number>(100);
+  const [penaltyNominal, setPenaltyNominal] = useState<number>(DEFAULT_PENALTY_NOMINAL);
   const [coloredModeEnabled, setColoredModeEnabled] = useState<boolean>(false);
   const [coloredBallDrafts, setColoredBallDrafts] = useState<ColoredBallDraft[]>([]);
 
@@ -360,6 +365,7 @@ export default function StartPage() {
     const config: GameConfig = {
       players: clampedPlayers,
       ballPrice: Number.isFinite(ballPrice) ? ballPrice : 100,
+      penaltyNominal: normalizePenaltyNominal(penaltyNominal),
       createdAt: Date.now(),
       coloredModeEnabled,
       coloredBalls: coloredModeEnabled ? normalizedColoredBalls : undefined,
@@ -423,6 +429,22 @@ export default function StartPage() {
                 inputMode="numeric"
                 value={Number.isFinite(ballPrice) ? ballPrice : ""}
                 onChange={(e) => setBallPrice(e.target.valueAsNumber)}
+                className="h-12 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 text-zinc-100 outline-none transition duration-200 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/30"
+              />
+            </div>
+            <div className="mt-3">
+              <label htmlFor="penalty-nominal" className="mb-1 block text-sm text-zinc-300">
+                Номинал штрафа (x1-x5)
+              </label>
+              <input
+                id="penalty-nominal"
+                type="number"
+                min={MIN_PENALTY_NOMINAL}
+                max={MAX_PENALTY_NOMINAL}
+                step={1}
+                inputMode="numeric"
+                value={Number.isFinite(penaltyNominal) ? penaltyNominal : DEFAULT_PENALTY_NOMINAL}
+                onChange={(e) => setPenaltyNominal(normalizePenaltyNominal(e.target.valueAsNumber))}
                 className="h-12 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 text-zinc-100 outline-none transition duration-200 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/30"
               />
             </div>

@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { PlayerActionPopup } from "./PlayerActionPopup";
-import { clampPlayers } from "../../services/game-rules-service";
-import { createDeltaEvent } from "../../services/shot-event-service";
+import { DEFAULT_PENALTY_NOMINAL, clampPlayers, normalizePenaltyNominal } from "../../services/game-rules-service";
+import { createDeltaEvent, createPenaltyEvent } from "../../services/shot-event-service";
 import type { ColoredBall, Player, ShotEvent } from "../../types/game";
 
 type MetricType = "score" | "penalty" | "colored";
@@ -32,6 +32,7 @@ type ActivePopupPlayer = {
 type GameInputTableProps = {
   players: Player[];
   coloredBalls: ColoredBall[];
+  penaltyNominal?: number;
   addShotEvent: (event: ShotEvent) => void;
 };
 
@@ -52,6 +53,14 @@ function normalizeInteger(value: number, allowNegative: boolean): number {
   return Math.max(0, integerValue);
 }
 
+function normalizePenaltyCounter(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.trunc(value);
+}
+
 function clampPopupPosition(top: number, left: number): PopupPosition {
   const popupWidth = 320;
   const maxLeft = Math.max(8, window.innerWidth - popupWidth - 8);
@@ -65,11 +74,14 @@ function clampPopupPosition(top: number, left: number): PopupPosition {
   };
 }
 
-export function GameInputTable({ players, coloredBalls, addShotEvent }: GameInputTableProps) {
+export function GameInputTable({ players, coloredBalls, penaltyNominal, addShotEvent }: GameInputTableProps) {
   const [grid, setGrid] = useState<GridState>({});
   const [activePopupPlayer, setActivePopupPlayer] = useState<ActivePopupPlayer | null>(null);
   const [popupPosition, setPopupPosition] = useState<PopupPosition | null>(null);
   const visiblePlayers = useMemo(() => clampPlayers(players), [players]);
+  const normalizedPenaltyNominal = normalizePenaltyNominal(
+    Number.isFinite(penaltyNominal) ? (penaltyNominal as number) : DEFAULT_PENALTY_NOMINAL
+  );
 
   const rows = useMemo<MetricRow[]>(() => {
     const baseRows: MetricRow[] = [
@@ -94,8 +106,21 @@ export function GameInputTable({ players, coloredBalls, addShotEvent }: GameInpu
     addShotEvent(event);
   };
 
+  const handlePenaltyStep = (rowKey: string, playerId: string, isPositive: boolean) => {
+    const cellKey = getCellKey(rowKey, playerId);
+    const prevValue = grid[cellKey] ?? 0;
+    const nextValue = normalizePenaltyCounter(prevValue + (isPositive ? 1 : -1));
+
+    setGrid((prev) => ({
+      ...prev,
+      [cellKey]: nextValue,
+    }));
+
+    addShotEvent(createPenaltyEvent(playerId, isPositive, normalizedPenaltyNominal));
+  };
+
   const handleCellChange = (row: MetricRow, playerId: string, rawValue: number) => {
-    const allowNegative = row.type === "penalty";
+    const allowNegative = false;
     const nextValue = normalizeInteger(rawValue, allowNegative);
     const cellKey = getCellKey(row.key, playerId);
     const prevValue = grid[cellKey] ?? 0;
@@ -170,19 +195,38 @@ export function GameInputTable({ players, coloredBalls, addShotEvent }: GameInpu
                 </td>
                 {visiblePlayers.map((player) => {
                   const key = getCellKey(row.key, player.id);
-                  const allowNegative = row.type === "penalty";
                   const value = grid[key] ?? 0;
 
                   return (
                     <td key={key} className="w-[140px] border-b border-zinc-800 px-2 py-3">
-                      <input
-                        type="number"
-                        step={1}
-                        min={allowNegative ? undefined : 0}
-                        value={value}
-                        onChange={(e) => handleCellChange(row, player.id, e.target.valueAsNumber)}
-                        className="h-9 w-full min-w-[100px] rounded-lg border border-zinc-700 bg-zinc-900 px-2 text-zinc-100 outline-none transition duration-200 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/30"
-                      />
+                      {row.type === "penalty" ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handlePenaltyStep(row.key, player.id, true)}
+                            className="h-9 w-9 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-100 transition duration-200 hover:bg-zinc-800"
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePenaltyStep(row.key, player.id, false)}
+                            className="h-9 w-9 rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-100 transition duration-200 hover:bg-zinc-800"
+                          >
+                            −
+                          </button>
+                          <span className="min-w-[36px] text-right text-zinc-300">{value}</span>
+                        </div>
+                      ) : (
+                        <input
+                          type="number"
+                          step={1}
+                          min={0}
+                          value={value}
+                          onChange={(e) => handleCellChange(row, player.id, e.target.valueAsNumber)}
+                          className="h-9 w-full min-w-[100px] rounded-lg border border-zinc-700 bg-zinc-900 px-2 text-zinc-100 outline-none transition duration-200 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/30"
+                        />
+                      )}
                     </td>
                   );
                 })}
@@ -205,6 +249,11 @@ export function GameInputTable({ players, coloredBalls, addShotEvent }: GameInpu
           if (!activePopupPlayer) return;
           emitEvent(activePopupPlayer.id, delta, source, coloredBallId);
         }}
+        onPenaltyAction={(isPositive) => {
+          if (!activePopupPlayer) return;
+          addShotEvent(createPenaltyEvent(activePopupPlayer.id, isPositive, normalizedPenaltyNominal));
+        }}
+        penaltyNominal={normalizedPenaltyNominal}
       />
     </>
   );

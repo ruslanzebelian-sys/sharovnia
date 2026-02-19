@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { PlayerTileGrid } from "../../components/game/PlayerTileGrid";
 import { StatsTable } from "../../components/game/StatsTable";
+import { DEFAULT_PENALTY_NOMINAL, normalizePenaltyNominal } from "../../services/game-rules-service";
 import { formatSessionTime, getSessionElapsed } from "../../services/session-timer-service";
 import { computePlayerStats } from "../../services/stats-service";
 import { useGameStore } from "../../store/game-store";
@@ -10,11 +12,15 @@ import { useGameStore } from "../../store/game-store";
 export default function GamePage() {
   const [selectedLastScorerId, setSelectedLastScorerId] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [isEndSessionDialogOpen, setIsEndSessionDialogOpen] = useState(false);
 
   const activeGame = useGameStore((state) => state.activeGame);
   const activeSeries = useGameStore((state) => state.activeSeries);
   const shotEvents = useGameStore((state) => state.shotEvents);
   const addShotEvent = useGameStore((state) => state.addShotEvent);
+  const penaltyImbalance = useGameStore((state) => state.penaltyImbalance);
+  const transitionError = useGameStore((state) => state.transitionError);
+  const clearTransitionError = useGameStore((state) => state.clearTransitionError);
   const randomizePlayerOrder = useGameStore((state) => state.randomizePlayerOrder);
   const startSessionTimer = useGameStore((state) => state.startSessionTimer);
   const endSessionTimer = useGameStore((state) => state.endSessionTimer);
@@ -34,6 +40,24 @@ export default function GamePage() {
   }, [activeGame]);
 
   const coloredBalls = activeGame?.coloredBalls ?? [];
+  const penaltyNominal = normalizePenaltyNominal(activeGame?.rules?.penaltyNominal ?? DEFAULT_PENALTY_NOMINAL);
+  const sessionPenaltyBalance = useMemo(() => {
+    const base: Record<string, number> = {};
+
+    for (const player of orderedPlayers) {
+      base[player.id] = 0;
+    }
+
+    if (!activeSeries?.sessionPenaltyBalance) {
+      return base;
+    }
+
+    for (const [playerId, value] of Object.entries(activeSeries.sessionPenaltyBalance)) {
+      base[playerId] = Number.isFinite(value) ? Math.trunc(value) : 0;
+    }
+
+    return base;
+  }, [activeSeries?.sessionPenaltyBalance, orderedPlayers]);
 
   const playerStats = useMemo(() => {
     if (!activeGame) {
@@ -77,6 +101,23 @@ export default function GamePage() {
     shotEvents.length > 0 &&
     selectedLastScorerId.length > 0;
 
+  const openEndSessionDialog = () => {
+    if (!canEndSession) {
+      return;
+    }
+
+    setIsEndSessionDialogOpen(true);
+  };
+
+  const closeEndSessionDialog = () => {
+    setIsEndSessionDialogOpen(false);
+  };
+
+  const confirmEndSession = () => {
+    endSessionTimer();
+    setIsEndSessionDialogOpen(false);
+  };
+
   return (
     <main className="min-h-screen px-4 py-8 text-zinc-100">
       <div className="mx-auto w-full max-w-[700px]">
@@ -87,6 +128,25 @@ export default function GamePage() {
 
           {activeGame && (
             <div className="mt-4">
+              {!penaltyImbalance.isBalanced && (
+                <div className="mb-3 inline-flex items-center rounded-full border border-red-600/70 bg-red-900/30 px-3 py-1 text-xs font-semibold text-red-200">
+                  {`Баланс штрафов: ${penaltyImbalance.total > 0 ? "+" : ""}${penaltyImbalance.total}`}
+                </div>
+              )}
+              {transitionError && (
+                <div className="mb-3 flex items-start justify-between gap-3 rounded-lg border border-red-600 bg-red-900/40 px-4 py-2 text-red-300">
+                  <span>{transitionError}</span>
+                  <button
+                    type="button"
+                    onClick={clearTransitionError}
+                    aria-label="Закрыть ошибку"
+                    className="rounded p-1 text-red-300/90 transition duration-150 hover:bg-red-800/50 hover:text-red-200"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
@@ -131,17 +191,6 @@ export default function GamePage() {
                 )}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={endSessionTimer}
-                  disabled={!canEndSession}
-                  className="h-11 rounded-xl border border-rose-500/60 bg-rose-500/10 px-4 text-sm font-semibold text-rose-200 transition duration-200 hover:bg-rose-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Завершить игру полностью
-                </button>
-              </div>
-
               <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
                 <p className="text-sm text-zinc-300">Кто забил последний шар?</p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -183,6 +232,9 @@ export default function GamePage() {
                 <PlayerTileGrid
                   players={orderedPlayers}
                   coloredBalls={coloredBalls}
+                  penaltyNominal={penaltyNominal}
+                  sessionPenaltyBalance={sessionPenaltyBalance}
+                  penaltyImbalance={penaltyImbalance}
                   stats={playerStats}
                   addShotEvent={addShotEvent}
                 />
@@ -190,12 +242,36 @@ export default function GamePage() {
 
               <h2 className="mt-6 text-lg font-semibold">Статистика</h2>
               <div className="mt-3">
-                <StatsTable players={orderedPlayers} coloredBalls={coloredBalls} stats={playerStats} />
+                <StatsTable
+                  players={orderedPlayers}
+                  coloredBalls={coloredBalls}
+                  sessionPenaltyBalance={sessionPenaltyBalance}
+                  stats={playerStats}
+                />
+              </div>
+
+              <div className="mt-10 border-t border-zinc-800 pt-6">
+                <button
+                  type="button"
+                  onClick={openEndSessionDialog}
+                  disabled={!canEndSession}
+                  className="h-11 rounded-xl border border-rose-500/60 bg-rose-500/10 px-4 text-sm font-semibold text-rose-200 transition duration-200 hover:bg-rose-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Завершить игру полностью
+                </button>
               </div>
             </div>
           )}
         </section>
       </div>
+
+      <ConfirmDialog
+        isOpen={isEndSessionDialogOpen}
+        title="Подтверждение"
+        description="Вы уверены, что хотите завершить сессию?"
+        onConfirm={confirmEndSession}
+        onCancel={closeEndSessionDialog}
+      />
     </main>
   );
 }

@@ -14,13 +14,17 @@ export type Player = {
 export type ShotEvent = {
   playerId: string;
   delta: number;
-  source: "white" | "colored";
+  source: "white" | "colored" | "penalty";
   coloredBallId?: string;
 };
 
 export type SeriesGameMeta = {
   gameIndex: number;
   isReverse: boolean;
+};
+
+export type GameRules = {
+  penaltyNominal: number;
 };
 
 export type SessionTimer = {
@@ -31,6 +35,7 @@ export type SessionTimer = {
 export type GameConfig = {
   players: Player[];
   ballPrice: number;
+  penaltyNominal: number;
   createdAt: number;
   coloredModeEnabled: boolean;
   coloredBalls?: ColoredBall[];
@@ -45,6 +50,7 @@ export type Game = {
   createdAt: number;
   coloredModeEnabled: boolean;
   coloredBalls?: ColoredBall[];
+  rules: GameRules;
   seriesMeta?: SeriesGameMeta;
 };
 
@@ -54,4 +60,5 @@ export type MatchSeries = {
   baseOrder: string[];
   currentIndex: number;
   sessionTimer: SessionTimer;
+  sessionPenaltyBalance: Record<string, number>;
 };

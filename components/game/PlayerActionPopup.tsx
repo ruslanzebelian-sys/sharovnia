@@ -14,20 +14,24 @@ type PlayerActionPopupProps = {
   isOpen: boolean;
   playerName: string;
   coloredBalls: ColoredBall[];
+  penaltyNominal: number;
   position: PopupPosition | null;
   placement?: PopupPlacement;
   onClose: () => void;
   onAction: (delta: number, source: "white" | "colored", coloredBallId?: string) => void;
+  onPenaltyAction: (isPositive: boolean) => void;
 };
 
 export function PlayerActionPopup({
   isOpen,
   playerName,
   coloredBalls,
+  penaltyNominal,
   position,
   placement = "above",
   onClose,
   onAction,
+  onPenaltyAction,
 }: PlayerActionPopupProps) {
   const popupRef = useRef<HTMLDivElement | null>(null);
 
@@ -76,22 +80,22 @@ export function PlayerActionPopup({
         <button
           type="button"
           onClick={() => {
-            onAction(1, "white");
+            onPenaltyAction(true);
             onClose();
           }}
           className="h-9 rounded-lg border border-zinc-700 bg-zinc-800 px-2 text-sm font-semibold text-zinc-100 transition duration-150 hover:bg-zinc-700"
         >
-          +1 шар
+          + Штраф ({penaltyNominal})
         </button>
         <button
           type="button"
           onClick={() => {
-            onAction(-1, "white");
+            onPenaltyAction(false);
             onClose();
           }}
           className="h-9 rounded-lg border border-zinc-700 bg-zinc-800 px-2 text-sm font-semibold text-zinc-100 transition duration-150 hover:bg-zinc-700"
         >
-          -1 шар
+          - Штраф ({penaltyNominal})
         </button>
 
         {coloredBalls.flatMap((ball) => [

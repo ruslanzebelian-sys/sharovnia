@@ -1,5 +1,5 @@
 import type { GameConfig } from "../../types/game";
-import { clampPlayers } from "../game-rules-service";
+import { clampPlayers, normalizePenaltyNominal } from "../game-rules-service";
 import type { CreateGameFromConfig } from "./types";
 
 function createGameId(config: GameConfig): string {
@@ -22,5 +22,8 @@ export const createGameFromConfig: CreateGameFromConfig = (config) => {
     createdAt: config.createdAt,
     coloredModeEnabled: config.coloredModeEnabled,
     coloredBalls: config.coloredBalls,
+    rules: {
+      penaltyNominal: normalizePenaltyNominal(config.penaltyNominal),
+    },
   };
 };
