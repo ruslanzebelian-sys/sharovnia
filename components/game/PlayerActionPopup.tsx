@@ -40,9 +40,13 @@ export function PlayerActionPopup({
       return;
     }
 
-    const onPointerDown = (event: MouseEvent) => {
+    const onInteractOutside = (event: Event) => {
       if (!popupRef.current) return;
       if (popupRef.current.contains(event.target as Node)) return;
+      onClose();
+    };
+
+    const onScroll = () => {
       onClose();
     };
 
@@ -52,12 +56,16 @@ export function PlayerActionPopup({
       }
     };
 
-    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("mousedown", onInteractOutside);
+    document.addEventListener("touchstart", onInteractOutside);
     document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("scroll", onScroll, { passive: true });
 
     return () => {
-      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("mousedown", onInteractOutside);
+      document.removeEventListener("touchstart", onInteractOutside);
       document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("scroll", onScroll);
     };
   }, [isOpen, onClose]);
 
