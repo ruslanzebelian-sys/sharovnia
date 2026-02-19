@@ -1,4 +1,4 @@
-export type NormalizeHandicap = (value: number) => number;
+export type NormalizeHandicap = (value: number | string) => number;
 
 export type ValidateHandicap = (value: number) => boolean;
 

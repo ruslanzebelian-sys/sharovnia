@@ -27,6 +27,8 @@ export type GameRules = {
   penaltyNominal: number;
 };
 
+export type GamePhase = "ACTIVE" | "SETTLED";
+
 export type SessionTimer = {
   startedAt: number | null;
   endedAt: number | null;
@@ -51,6 +53,7 @@ export type Game = {
   coloredModeEnabled: boolean;
   coloredBalls?: ColoredBall[];
   rules: GameRules;
+  phase: GamePhase;
   seriesMeta?: SeriesGameMeta;
 };
 

@@ -22,7 +22,9 @@ type PlayerTileGridProps = {
   coloredBalls: ColoredBall[];
   penaltyNominal: number;
   sessionPenaltyBalance: Record<string, number>;
+  currentNetScores: Record<string, number>;
   penaltyImbalance: PenaltyImbalance;
+  interactionsDisabled?: boolean;
   stats: PlayerStats[];
   addShotEvent: (event: ShotEvent) => void;
 };
@@ -48,7 +50,9 @@ export function PlayerTileGrid({
   coloredBalls,
   penaltyNominal,
   sessionPenaltyBalance,
+  currentNetScores,
   penaltyImbalance,
+  interactionsDisabled = false,
   stats,
   addShotEvent,
 }: PlayerTileGridProps) {
@@ -79,6 +83,7 @@ export function PlayerTileGrid({
         {players.map((player) => {
           const playerStats = statsByPlayerId.get(player.id);
           const penaltyTotal = sessionPenaltyBalance[player.id] ?? 0;
+          const netScore = currentNetScores[player.id] ?? 0;
           const hasPenaltyHighlight = !penaltyImbalance.isBalanced && penaltyTotal !== 0;
 
           return (
@@ -86,7 +91,8 @@ export function PlayerTileGrid({
               key={player.id}
               type="button"
               onClick={(e) => openPopup(player.id, player.name, e.currentTarget)}
-              className={`h-full min-h-[180px] w-full rounded-xl border p-4 text-left transition duration-200 hover:border-cyan-400/50 hover:shadow-[0_0_20px_rgba(34,211,238,0.12)] ${
+              disabled={interactionsDisabled}
+              className={`h-full min-h-[180px] w-full rounded-xl border p-4 text-left transition duration-200 disabled:cursor-not-allowed disabled:opacity-70 ${
                 hasPenaltyHighlight
                   ? "border-red-500 ring-1 ring-red-600 bg-red-900/10"
                   : "border-zinc-700 bg-zinc-900"
@@ -99,6 +105,17 @@ export function PlayerTileGrid({
 
                   <div className="mt-2 text-sm text-zinc-300">
                     Штрафы: <span className="font-semibold text-zinc-100">{formatSigned(penaltyTotal)}</span>
+                  </div>
+
+                  <div className="mt-2 text-sm text-zinc-300">
+                    Общий счёт:{" "}
+                    <span
+                      className={`font-semibold ${
+                        netScore > 0 ? "text-emerald-400" : netScore < 0 ? "text-red-400" : "text-zinc-400"
+                      }`}
+                    >
+                      {formatSigned(netScore)}
+                    </span>
                   </div>
                 </div>
 

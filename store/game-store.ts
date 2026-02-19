@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { calculateNetScores, validateSettlementInput } from "../services/game-settlement-service";
 import {
   applyPenalty,
   getPenaltyImbalance,
@@ -15,16 +16,27 @@ import {
 import { getReverseOrder, shufflePlayers } from "../services/player-order-service";
 import type { Game, MatchSeries, ShotEvent } from "../types/game";
 
+function createZeroNetScores(playerIds: string[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const playerId of playerIds) {
+    result[playerId] = 0;
+  }
+
+  return result;
+}
+
 type GameStoreState = {
   activeGame: Game | null;
   activeSeries: MatchSeries | null;
   shotEvents: ShotEvent[];
+  currentNetScores: Record<string, number>;
   transitionError: string | null;
   penaltyImbalance: PenaltyImbalance;
   setActiveGame: (game: Game) => void;
   startSeries: (game: Game) => void;
   startSessionTimer: () => void;
   endSessionTimer: () => void;
+  completeSettlement: (settlementData: Record<string, number>) => void;
   startNextSeriesGame: () => void;
   reverseGameOrder: (lastScorerId: string) => void;
   clearTransitionError: () => void;
@@ -37,12 +49,18 @@ export const useGameStore = create<GameStoreState>((set) => ({
   activeGame: null,
   activeSeries: null,
   shotEvents: [],
+  currentNetScores: {},
   transitionError: null,
   penaltyImbalance: {
     isBalanced: true,
     total: 0,
   },
-  setActiveGame: (game) => set({ activeGame: game, shotEvents: game.shotEvents ?? [] }),
+  setActiveGame: (game) =>
+    set({
+      activeGame: game,
+      shotEvents: game.shotEvents ?? [],
+      currentNetScores: createZeroNetScores(game.playerOrder),
+    }),
   startSeries: (game) => {
     const series = createSeries({
       ...game,
@@ -53,6 +71,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       activeSeries: series,
       activeGame: series.games[series.currentIndex],
       shotEvents: series.games[series.currentIndex].shotEvents,
+      currentNetScores: createZeroNetScores(series.games[series.currentIndex].playerOrder),
       transitionError: null,
       penaltyImbalance: getPenaltyImbalance(series),
     });
@@ -92,14 +111,64 @@ export const useGameStore = create<GameStoreState>((set) => ({
         penaltyImbalance: getPenaltyImbalance(nextActiveSeries),
       };
     }),
+  completeSettlement: (settlementData) =>
+    set((state) => {
+      if (!state.activeSeries || !state.activeGame) {
+        return state;
+      }
+      if (state.activeGame.phase !== "ACTIVE") {
+        return state;
+      }
+
+      const validation = validateSettlementInput(state.activeGame.players, settlementData);
+      if (!validation.isValid) {
+        return {
+          transitionError: "���� �������� �����������",
+        };
+      }
+      const netScoresResult = calculateNetScores(
+        state.activeGame.playerOrder,
+        validation.normalized,
+        state.activeSeries.sessionPenaltyBalance
+      );
+      if (!netScoresResult.isBalanced) {
+        return {
+          transitionError: "Сумма шаров не сходится",
+        };
+      }
+
+      const settledGame: Game = {
+        ...state.activeGame,
+        phase: "SETTLED",
+        shotEvents: [...state.shotEvents],
+      };
+
+      const nextGames = [...state.activeSeries.games];
+      nextGames[state.activeSeries.currentIndex] = settledGame;
+
+      return {
+        activeGame: settledGame,
+        activeSeries: {
+          ...state.activeSeries,
+          games: nextGames,
+        },
+        currentNetScores: netScoresResult.netScores,
+        transitionError: null,
+      };
+    }),
   startNextSeriesGame: () =>
     set((state) => {
       if (!state.activeSeries || !state.activeGame) {
         return state;
       }
+      if (state.activeGame.phase !== "SETTLED") {
+        return {
+          transitionError: "������� ������� ����",
+        };
+      }
       if (!isPenaltyBalanced(state.activeSeries)) {
         return {
-          transitionError: "Ошибка в штрафах",
+          transitionError: "������ � �������",
         };
       }
 
@@ -126,6 +195,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
         activeSeries: nextSeries,
         activeGame: nextGame,
         shotEvents: [],
+        currentNetScores: createZeroNetScores(nextGame.playerOrder),
         transitionError: null,
         penaltyImbalance: getPenaltyImbalance(nextSeries),
       };
@@ -135,9 +205,14 @@ export const useGameStore = create<GameStoreState>((set) => ({
       if (!state.activeSeries || !state.activeGame) {
         return state;
       }
+      if (state.activeGame.phase !== "SETTLED") {
+        return {
+          transitionError: "������� ������� ����",
+        };
+      }
       if (!isPenaltyBalanced(state.activeSeries)) {
         return {
-          transitionError: "Ошибка в штрафах",
+          transitionError: "������ � �������",
         };
       }
 
@@ -176,6 +251,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
         activeSeries: nextSeries,
         activeGame: nextGame,
         shotEvents: [],
+        currentNetScores: createZeroNetScores(nextGame.playerOrder),
         transitionError: null,
         penaltyImbalance: getPenaltyImbalance(nextSeries),
       };
@@ -186,6 +262,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       activeGame: null,
       activeSeries: null,
       shotEvents: [],
+      currentNetScores: {},
       transitionError: null,
       penaltyImbalance: {
         isBalanced: true,
@@ -223,17 +300,17 @@ export const useGameStore = create<GameStoreState>((set) => ({
           ...state.activeSeries,
           games: nextGames,
         },
+        currentNetScores: createZeroNetScores(nextPlayerOrder),
         transitionError: null,
-        penaltyImbalance: state.activeSeries
-          ? getPenaltyImbalance(state.activeSeries)
-          : {
-              isBalanced: true,
-              total: 0,
-            },
+        penaltyImbalance: getPenaltyImbalance(state.activeSeries),
       };
     }),
   addShotEvent: (event) =>
     set((state) => {
+      if (state.activeGame?.phase !== "ACTIVE") {
+        return state;
+      }
+
       const nextShotEvents = [...state.shotEvents, event];
 
       if (event.source !== "penalty" || !state.activeSeries) {

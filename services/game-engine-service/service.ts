@@ -25,5 +25,6 @@ export const createGameFromConfig: CreateGameFromConfig = (config) => {
     rules: {
       penaltyNominal: normalizePenaltyNominal(config.penaltyNominal),
     },
+    phase: "ACTIVE",
   };
 };

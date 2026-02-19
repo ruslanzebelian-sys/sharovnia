@@ -37,7 +37,7 @@ type ColoredBallDraft = {
 type PlayerDraft = {
   id: string;
   name: string;
-  handicap: number;
+  handicapInput: string;
 };
 
 type PlayerRowProps = {
@@ -45,12 +45,22 @@ type PlayerRowProps = {
   player: PlayerDraft;
   canRemove: boolean;
   onNameChange: (id: string, nextValue: string) => void;
-  onHandicapChange: (id: string, nextValue: number) => void;
+  onHandicapChange: (id: string, nextValue: string) => void;
+  onHandicapBlur: (id: string) => void;
   onEnter: (id: string) => void;
   onRemove: (id: string) => void;
 };
 
-function PlayerRow({ index, player, canRemove, onNameChange, onHandicapChange, onEnter, onRemove }: PlayerRowProps) {
+function PlayerRow({
+  index,
+  player,
+  canRemove,
+  onNameChange,
+  onHandicapChange,
+  onHandicapBlur,
+  onEnter,
+  onRemove,
+}: PlayerRowProps) {
   const nameInputId = `player-name-${player.id}`;
   const handicapInputId = `player-handicap-${player.id}`;
 
@@ -83,13 +93,12 @@ function PlayerRow({ index, player, canRemove, onNameChange, onHandicapChange, o
           </label>
           <input
             id={handicapInputId}
-            type="number"
-            min={0}
-            max={50}
-            step={1}
+            type="text"
             inputMode="numeric"
-            value={Number.isFinite(player.handicap) ? player.handicap : 0}
-            onChange={(e) => onHandicapChange(player.id, e.target.valueAsNumber)}
+            pattern="[0-9]*"
+            value={player.handicapInput}
+            onChange={(e) => onHandicapChange(player.id, e.target.value)}
+            onBlur={() => onHandicapBlur(player.id)}
             className="h-12 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 text-zinc-100 outline-none transition duration-200 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/30"
           />
         </div>
@@ -238,8 +247,21 @@ function createPlayerDraft(): PlayerDraft {
   return {
     id,
     name: "",
-    handicap: 0,
+    handicapInput: "0",
   };
+}
+
+function normalizeHandicapInputText(rawValue: string): string {
+  if (rawValue.length === 0) {
+    return "";
+  }
+
+  const firstDigits = rawValue.match(/\d+/)?.[0] ?? "";
+  if (firstDigits.length === 0) {
+    return "";
+  }
+
+  return firstDigits.replace(/^0+(?=\d)/, "");
 }
 
 export default function StartPage() {
@@ -249,7 +271,7 @@ export default function StartPage() {
     {
       id: "pl-initial-1",
       name: "",
-      handicap: 0,
+      handicapInput: "0",
     },
   ]);
   const [ballPrice, setBallPrice] = useState<number>(100);
@@ -266,7 +288,7 @@ export default function StartPage() {
         continue;
       }
 
-      const handicap = normalizeHandicap(player.handicap);
+      const handicap = normalizeHandicap(player.handicapInput);
       if (!validateHandicap(handicap)) {
         continue;
       }
@@ -303,10 +325,21 @@ export default function StartPage() {
     setPlayers((prev) => prev.map((player) => (player.id === id ? { ...player, name: nextValue } : player)));
   };
 
-  const updatePlayerHandicap = (id: string, nextValue: number) => {
+  const updatePlayerHandicap = (id: string, nextValue: string) => {
+    const normalizedInput = normalizeHandicapInputText(nextValue);
     setPlayers((prev) =>
       prev.map((player) =>
-        player.id === id ? { ...player, handicap: normalizeHandicap(nextValue) } : player
+        player.id === id ? { ...player, handicapInput: normalizedInput } : player
+      )
+    );
+  };
+
+  const blurPlayerHandicap = (id: string) => {
+    setPlayers((prev) =>
+      prev.map((player) =>
+        player.id === id && player.handicapInput.length === 0
+          ? { ...player, handicapInput: "0" }
+          : player
       )
     );
   };
@@ -396,6 +429,7 @@ export default function StartPage() {
                   canRemove={players.length > 1}
                   onNameChange={updatePlayerName}
                   onHandicapChange={updatePlayerHandicap}
+                  onHandicapBlur={blurPlayerHandicap}
                   onEnter={addPlayerOnEnter}
                   onRemove={removePlayer}
                 />

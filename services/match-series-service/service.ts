@@ -30,6 +30,7 @@ export const getNextGameOrder: GetNextGameOrder = (baseOrder, gameIndex) => {
 export const createSeries: CreateSeries = (initialGame) => {
   const preparedGame: Game = {
     ...initialGame,
+    phase: initialGame.phase ?? "ACTIVE",
     seriesMeta: {
       gameIndex: 0,
       isReverse: false,
@@ -58,6 +59,7 @@ export const createNextGameFromPrevious: CreateNextGameFromPrevious = (prevGame,
     playerOrder: [...order],
     shotEvents: [],
     createdAt: Date.now(),
+    phase: "ACTIVE",
     seriesMeta: {
       gameIndex: index,
       isReverse: index % 2 === 1,

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
+import { SettlementModal } from "../../components/game/SettlementModal";
 import { PlayerTileGrid } from "../../components/game/PlayerTileGrid";
 import { StatsTable } from "../../components/game/StatsTable";
 import { DEFAULT_PENALTY_NOMINAL, normalizePenaltyNominal } from "../../services/game-rules-service";
@@ -13,11 +14,14 @@ export default function GamePage() {
   const [selectedLastScorerId, setSelectedLastScorerId] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [isEndSessionDialogOpen, setIsEndSessionDialogOpen] = useState(false);
+  const [isSettlementModalOpen, setIsSettlementModalOpen] = useState(false);
 
   const activeGame = useGameStore((state) => state.activeGame);
   const activeSeries = useGameStore((state) => state.activeSeries);
   const shotEvents = useGameStore((state) => state.shotEvents);
+  const currentNetScores = useGameStore((state) => state.currentNetScores);
   const addShotEvent = useGameStore((state) => state.addShotEvent);
+  const completeSettlement = useGameStore((state) => state.completeSettlement);
   const penaltyImbalance = useGameStore((state) => state.penaltyImbalance);
   const transitionError = useGameStore((state) => state.transitionError);
   const clearTransitionError = useGameStore((state) => state.clearTransitionError);
@@ -69,6 +73,7 @@ export default function GamePage() {
 
   useEffect(() => {
     setSelectedLastScorerId("");
+    setIsSettlementModalOpen(false);
   }, [activeGame?.id]);
 
   const timerStartedAt = activeSeries?.sessionTimer.startedAt ?? null;
@@ -94,10 +99,13 @@ export default function GamePage() {
   const timerLabel = isSessionTimerStarted ? formatSessionTime(elapsedMs) : "Запустить";
   const canEndSession = isSessionTimerStarted && timerEndedAt === null;
 
+  const isSettled = activeGame?.phase === "SETTLED";
+  const isActivePhase = activeGame?.phase === "ACTIVE";
+
   const canReverse =
     Boolean(activeSeries) &&
     Boolean(activeGame) &&
-    (activeGame?.seriesMeta?.gameIndex ?? 0) >= 0 &&
+    isSettled &&
     shotEvents.length > 0 &&
     selectedLastScorerId.length > 0;
 
@@ -158,10 +166,20 @@ export default function GamePage() {
                 <button
                   type="button"
                   onClick={startNextSeriesGame}
-                  className="h-11 rounded-xl border border-zinc-700 bg-zinc-800 px-4 text-sm font-semibold text-zinc-100 transition duration-200 hover:bg-zinc-700 active:scale-[0.98]"
+                  disabled={!isSettled}
+                  className="h-11 rounded-xl border border-zinc-700 bg-zinc-800 px-4 text-sm font-semibold text-zinc-100 transition duration-200 hover:bg-zinc-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Следующая игра
                 </button>
+                {isActivePhase && (
+                  <button
+                    type="button"
+                    onClick={() => setIsSettlementModalOpen(true)}
+                    className="h-11 rounded-xl border border-cyan-500/70 bg-cyan-500/15 px-4 text-sm font-semibold text-cyan-200 transition duration-200 hover:bg-cyan-500/25 active:scale-[0.98]"
+                  >
+                    Ввести счёт
+                  </button>
+                )}
               </div>
 
               <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200">
@@ -169,6 +187,8 @@ export default function GamePage() {
                   Игра #{(activeGame.seriesMeta?.gameIndex ?? activeSeries?.currentIndex ?? 0) + 1}
                   {activeGame.seriesMeta?.isReverse ? " (реверс)" : ""}
                 </span>
+                <span className="text-zinc-500">•</span>
+                <span>{isActivePhase ? "Игра активна" : "Счёт введён"}</span>
                 <span className="text-zinc-500">•</span>
                 <span>Время за столом</span>
                 <button
@@ -234,7 +254,9 @@ export default function GamePage() {
                   coloredBalls={coloredBalls}
                   penaltyNominal={penaltyNominal}
                   sessionPenaltyBalance={sessionPenaltyBalance}
+                  currentNetScores={currentNetScores}
                   penaltyImbalance={penaltyImbalance}
+                  interactionsDisabled={!isActivePhase}
                   stats={playerStats}
                   addShotEvent={addShotEvent}
                 />
@@ -264,6 +286,17 @@ export default function GamePage() {
           )}
         </section>
       </div>
+
+      <SettlementModal
+        isOpen={isSettlementModalOpen}
+        players={orderedPlayers}
+        playerOrder={activeGame?.playerOrder ?? []}
+        onCancel={() => setIsSettlementModalOpen(false)}
+        onConfirm={(inputMap) => {
+          completeSettlement(inputMap);
+          setIsSettlementModalOpen(false);
+        }}
+      />
 
       <ConfirmDialog
         isOpen={isEndSessionDialogOpen}
